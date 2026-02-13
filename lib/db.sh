@@ -161,7 +161,21 @@ episodic_db_insert_session() {
     local first_prompt="$6" message_count="$7" user_count="$8" assistant_count="$9"
     local git_branch="${10}" created_at="${11}" modified_at="${12}" duration="${13}"
 
+    id=$(episodic_sql_escape "$id")
+    project=$(episodic_sql_escape "$project")
+    project_path=$(episodic_sql_escape "$project_path")
+    archive_path=$(episodic_sql_escape "$archive_path")
+    source_path=$(episodic_sql_escape "$source_path")
     first_prompt=$(episodic_sql_escape "$first_prompt")
+    git_branch=$(episodic_sql_escape "$git_branch")
+    created_at=$(episodic_sql_escape "$created_at")
+    modified_at=$(episodic_sql_escape "$modified_at")
+
+    # Validate numeric fields to prevent SQL injection via exec_multi (stdin)
+    [[ "$message_count" =~ ^[0-9]+$ ]] || message_count=0
+    [[ "$user_count" =~ ^[0-9]+$ ]] || user_count=0
+    [[ "$assistant_count" =~ ^[0-9]+$ ]] || assistant_count=0
+    [[ "$duration" =~ ^[0-9]+$ ]] || duration=0
 
     episodic_db_exec_multi "$db" <<SQL
 INSERT OR REPLACE INTO sessions (
