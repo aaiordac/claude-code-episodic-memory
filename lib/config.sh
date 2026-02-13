@@ -58,18 +58,57 @@ episodic_log() {
     fi
 }
 
-# Derive project name from a project path like -Users-jane-projects-myapp
+# Derive project name from a Claude projects directory name like
+# -home-user-projects-my-cool-app
+#
+# The encoding (/ -> -) is lossy: we can't distinguish path separators from
+# hyphens in directory names. We resolve this by checking the actual filesystem:
+# try the full reconstructed path first, then progressively strip leading
+# components until we find a real directory and use its basename.
 episodic_project_from_path() {
     local dir_name="$1"
-    # Strip leading dash, split on dashes, take the last segment(s)
-    # e.g. -Users-jane-projects-myapp -> myapp
-    echo "$dir_name" | sed 's/^-//' | rev | cut -d'-' -f1 | rev
+
+    # Reconstruct candidate path: strip leading dash, replace - with /
+    local candidate
+    candidate=$(echo "$dir_name" | sed 's/^-/\//' | sed 's/-/\//g')
+
+    # If the exact path exists, use its basename
+    if [[ -d "$candidate" ]]; then
+        basename "$candidate"
+        return 0
+    fi
+
+    # Walk backwards to find the deepest existing parent, then take the
+    # remainder as the project name. E.g. for /home/user/exp/claude-code:
+    # /home/user/exp exists -> project = "claude-code" (with / re-joined as -)
+    local parts
+    IFS='/' read -ra parts <<< "$candidate"
+    local i
+    for (( i=${#parts[@]}-1; i>=1; i-- )); do
+        local parent_path
+        parent_path=$(printf '%s/' "${parts[@]:0:i}" | sed 's|/$||')
+        if [[ -d "$parent_path" ]]; then
+            local remaining="${parts[*]:i}"
+            echo "${remaining// /-}"
+            return 0
+        fi
+    done
+
+    # Fallback: last component of the dash-separated name
+    echo "$dir_name" | rev | cut -d'-' -f1 | rev
 }
 
 # Get the full project path from a directory name
+# Note: this is a best-effort reconstruction since the encoding is lossy
+# (dashes in directory names are indistinguishable from path separators).
 episodic_project_path_from_dir() {
     local dir_name="$1"
-    echo "$dir_name" | sed 's/^-//' | tr '-' '/'
+    echo "$dir_name" | sed 's/^-/\//' | sed 's/-/\//g'
+}
+
+# Derive project name from CWD (preferred when CWD is available)
+episodic_project_from_cwd() {
+    basename "${CWD:-$(pwd)}"
 }
 
 # Knowledge repo configuration

@@ -9,7 +9,7 @@ echo ""
 
 passed=0
 failed=0
-tests=("test-init" "test-archive" "test-query" "test-roundtrip" "test-knowledge" "test-synthesize" "test-index")
+tests=("test-project-name" "test-init" "test-archive" "test-query" "test-roundtrip" "test-knowledge" "test-synthesize" "test-index")
 
 for test in "${tests[@]}"; do
     if bash "$SCRIPT_DIR/$test.sh"; then

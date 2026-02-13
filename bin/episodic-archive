@@ -32,6 +32,7 @@ archive_session() {
     local jsonl_path="$1"
     local skip_summary="${2:-false}"
     local dry_run="${3:-false}"
+    local project_override="${4:-}"
 
     local session_file
     session_file=$(basename "$jsonl_path" .jsonl)
@@ -69,9 +70,13 @@ archive_session() {
         session_id="$session_file"
     fi
 
-    # Derive project name
+    # Derive project name (prefer explicit override, e.g. from CWD)
     local project project_path
-    project=$(episodic_project_from_path "$project_dir")
+    if [[ -n "$project_override" ]]; then
+        project="$project_override"
+    else
+        project=$(episodic_project_from_path "$project_dir")
+    fi
     project_path=$(episodic_project_path_from_dir "$project_dir")
 
     # Calculate duration
@@ -257,7 +262,9 @@ case "$MODE" in
             exit 0
         fi
 
-        archive_session "$LATEST" "$SKIP_SUMMARY" "$DRY_RUN"
+        # Use basename of CWD as project name (reliable, avoids lossy encoding)
+        CWD_PROJECT=$(basename "$CWD")
+        archive_session "$LATEST" "$SKIP_SUMMARY" "$DRY_RUN" "$CWD_PROJECT"
         ;;
 
     all)
