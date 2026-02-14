@@ -9,10 +9,10 @@ A self-contained episodic memory system for Claude Code, implemented entirely in
 ## Development Commands
 
 ```bash
-# Run all tests (8 core suites)
+# Run all tests (8 core + 13 regression suites)
 ./tests/run-all.sh
 
-# Run a single test suite
+# Core test suites
 ./tests/test-init.sh            # DB schema + idempotency
 ./tests/test-archive.sh         # Session archival + dedup
 ./tests/test-query.sh           # FTS5 search + BM25 ranking
@@ -22,7 +22,7 @@ A self-contained episodic memory system for Claude Code, implemented entirely in
 ./tests/test-index.sh           # Document indexing + search
 ./tests/test-project-name.sh    # Project name derivation from paths
 
-# Run individual regression tests (not in run-all.sh)
+# Regression test suites (also included in run-all.sh)
 ./tests/test-busy-timeout.sh       # SQLite busy_timeout wrappers
 ./tests/test-git-lockfile.sh       # Knowledge repo lockfile mechanism
 ./tests/test-sql-escape.sh         # Centralized SQL escaping
@@ -57,6 +57,10 @@ Tests create temp databases in `/tmp` and clean up via `trap`. Most tests don't 
 3. **Archive** (`bin/episodic-archive`): Parses JSONL -> extracts metadata (`lib/extract.sh`) -> calls Anthropic API for structured summary (`lib/summarize.sh`) -> stores in SQLite (`lib/db.sh`) -> copies raw JSONL to archive dir
 4. **Context injection** (`bin/episodic-context`): Outputs recent sessions + skills (with decay tiers) as markdown for the current project
 5. **Synthesis** (`bin/episodic-synthesize`): Loads sessions from DB + existing skills -> calls Opus to identify patterns -> writes skill markdown files to knowledge repo -> git commit+push
+
+### Session Scope
+
+Both archive and backfill process **top-level session files only** (`~/.claude/projects/<project>/*.jsonl`). Claude Code also stores subagent transcripts in nested directories (`<session-id>/subagents/agent-*.jsonl`) — these are intentionally excluded. Subagent files include Task tool agents, prompt suggestions (`agent-aprompt_suggestion-*`), and context compaction artifacts (`agent-acompact-*`). They are fragments of parent sessions, not standalone work — the parent already captures subagent output. In a typical workspace, subagent files account for ~45% of total JSONL file count.
 
 ### Three Storage Layers
 
@@ -105,4 +109,4 @@ Thresholds configurable via `EPISODIC_SKILL_FRESH_DAYS` / `EPISODIC_SKILL_AGING_
 - FTS5 virtual tables need special CREATE handling (check `sqlite_master` first)
 - Schema is defined once in `episodic_db_init` in `db.sh` — no other module should define tables
 - Tests override `EPISODIC_DB`, `EPISODIC_LOG`, and `EPISODIC_ARCHIVE_DIR` to temp paths and use `trap cleanup EXIT`
-- The `config.sh` model IDs in the README may differ from actual `config.sh` defaults — `config.sh` is the source of truth
+- **Model defaults:** Summary model is Haiku (`claude-haiku-4-5-20251001`), synthesis model is Opus (`claude-opus-4-6`). Always use non-dated model aliases where possible to avoid API `not_found_error`. `config.sh` is the source of truth for defaults.

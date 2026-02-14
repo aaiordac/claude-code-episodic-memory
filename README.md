@@ -476,7 +476,18 @@ cd ~/.claude/episodic-memory
 
 # Full backfill with Haiku summaries (~$0.008/session)
 ~/.claude/episodic-memory/bin/episodic-backfill
+
+# Full backfill + skill synthesis for all qualifying projects
+~/.claude/episodic-memory/bin/episodic-backfill --synthesize
 ```
+
+**Session scope:** Backfill processes top-level session files (`~/.claude/projects/<project>/*.jsonl`) only. Claude Code also stores subagent transcripts in nested directories (`<session-id>/subagents/agent-*.jsonl`), which include Task tool agents, prompt suggestions, and context compaction artifacts. These are intentionally excluded because:
+
+- **Subagent transcripts are fragments**, not standalone work sessions — the parent session already captures the subagent's output and results
+- **Prompt suggestions** (`agent-aprompt_suggestion-*`) and **compaction artifacts** (`agent-acompact-*`) are internal Claude Code mechanics with no user-facing knowledge value
+- Archiving them would create duplicate content and pollute summaries
+
+In a typical workspace, subagent files can account for ~45% of total JSONL file count but represent already-captured context.
 
 ### Uninstall
 
@@ -504,13 +515,13 @@ EPISODIC_CLAUDE_PROJECTS="${EPISODIC_CLAUDE_PROJECTS:-$HOME/.claude/projects}"
 EPISODIC_KNOWLEDGE_REPO="${EPISODIC_KNOWLEDGE_REPO:-}"  # git URL, set during install
 EPISODIC_KNOWLEDGE_DIR="${EPISODIC_KNOWLEDGE_DIR:-$HOME/.claude/knowledge}"  # local clone
 
-# Summary model (default: Opus 4.6 with extended thinking)
-EPISODIC_SUMMARY_MODEL="${EPISODIC_SUMMARY_MODEL:-claude-opus-4-6-20260205}"
-EPISODIC_SUMMARY_THINKING="${EPISODIC_SUMMARY_THINKING:-true}"       # enable extended thinking
+# Summary model (default: Haiku 4.5 — fast and cheap)
+EPISODIC_SUMMARY_MODEL="${EPISODIC_SUMMARY_MODEL:-claude-haiku-4-5-20251001}"
+EPISODIC_SUMMARY_THINKING="${EPISODIC_SUMMARY_THINKING:-false}"      # enable extended thinking
 EPISODIC_SUMMARY_THINKING_BUDGET="${EPISODIC_SUMMARY_THINKING_BUDGET:-10000}"  # thinking tokens
 
 # Skill synthesis model
-EPISODIC_OPUS_MODEL="${EPISODIC_OPUS_MODEL:-claude-opus-4-6-20260205}"
+EPISODIC_OPUS_MODEL="${EPISODIC_OPUS_MODEL:-claude-opus-4-6}"
 
 # Vision model for PDF/image OCR during document indexing
 EPISODIC_INDEX_VISION_MODEL="${EPISODIC_INDEX_VISION_MODEL:-claude-haiku-4-5-20251001}"
@@ -558,6 +569,7 @@ EPISODIC_SKILL_AGING_DAYS="${EPISODIC_SKILL_AGING_DAYS:-90}"   # one-line summar
 | Decision | Choice | Why |
 |----------|--------|-----|
 | Search engine | SQLite FTS5 (BM25) | Zero deps, 10-50ms queries, keyword-rich summaries don't need vectors |
+| Session scope | Top-level JSONL only | Subagent transcripts are fragments of parent sessions — archiving them would duplicate content |
 | Session summaries | Haiku API | ~$0.008/session, reliable structured JSON, fast |
 | Skill synthesis | Opus API | Needs deep reasoning to identify patterns across sessions |
 | Knowledge storage | Git repo | Universal sync, versioned, offline-capable, no vendor lock-in |
