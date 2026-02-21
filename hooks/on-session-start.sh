@@ -12,8 +12,8 @@ if [[ -f "$EPISODIC_ROOT/bin/episodic-knowledge-sync" ]]; then
     "$EPISODIC_ROOT/bin/episodic-knowledge-sync" pull &>/dev/null &
 fi
 
-# Archive the previous session (background, non-blocking)
-"$EPISODIC_ROOT/bin/episodic-archive" --previous &>/dev/null &
+# Catch-up: summarize any sessions with pending/failed summaries (background, non-blocking)
+"$EPISODIC_ROOT/bin/episodic-archive" --catch-up &>/dev/null &
 
 # Index knowledge repo documents (background, non-blocking)
 if [[ -f "$EPISODIC_ROOT/bin/episodic-index" ]]; then

@@ -8,7 +8,7 @@ EPISODIC_ROOT="${EPISODIC_ROOT:-$HOME/.claude/episodic-memory}"
 [[ -f "$EPISODIC_ROOT/bin/episodic-archive" ]] || exit 0
 
 # Quick metadata-only archive of current session (no Haiku call)
-"$EPISODIC_ROOT/bin/episodic-archive" --previous --no-summary &>/dev/null || true
+"$EPISODIC_ROOT/bin/episodic-archive" --current --no-summary &>/dev/null || true
 
 # Push any knowledge repo changes (background, non-blocking)
 if [[ -f "$EPISODIC_ROOT/bin/episodic-knowledge-sync" ]]; then

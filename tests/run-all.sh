@@ -25,6 +25,8 @@ regression_tests=(
     "test-fts5-escape"
     "test-insert-session-escape"
     "test-git-conflict-safety"
+    "test-archive-current"
+    "test-archive-catchup"
 )
 
 for test in "${tests[@]}"; do

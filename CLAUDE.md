@@ -9,7 +9,7 @@ A self-contained episodic memory system for Claude Code, implemented entirely in
 ## Development Commands
 
 ```bash
-# Run all tests (8 core + 13 regression suites)
+# Run all tests (8 core + 15 regression suites)
 ./tests/run-all.sh
 
 # Core test suites
@@ -36,6 +36,8 @@ A self-contained episodic memory system for Claude Code, implemented entirely in
 ./tests/test-fts5-escape.sh        # FTS5 MATCH injection prevention
 ./tests/test-insert-session-escape.sh # SQL escaping in session inserts
 ./tests/test-git-conflict-safety.sh   # Git rebase conflict marker detection
+./tests/test-archive-current.sh       # --current mode (stop hook)
+./tests/test-archive-catchup.sh       # --catch-up mode (cross-project summarizer)
 
 # Install (sets up hooks, DB, skills)
 ./install.sh
@@ -52,8 +54,8 @@ Tests create temp databases in `/tmp` and clean up via `trap`. Most tests don't 
 
 ### Core Data Flow
 
-1. **Stop hook** (`hooks/on-stop.sh`): Quick metadata-only archive of current session (no API call), pushes knowledge repo changes
-2. **SessionStart hook** (`hooks/on-session-start.sh`): Background tasks (git pull knowledge, archive previous session with full summary, index documents) + foreground context injection
+1. **Stop hook** (`hooks/on-stop.sh`): Archives the **current session by ID** (`--current --no-summary`, metadata only, no API call), pushes knowledge repo changes
+2. **SessionStart hook** (`hooks/on-session-start.sh`): Background tasks (git pull knowledge, **cross-project catch-up summarizer** `--catch-up` for all unsummarized sessions, index documents) + foreground context injection
 3. **Archive** (`bin/episodic-archive`): Parses JSONL -> extracts metadata (`lib/extract.sh`) -> calls Anthropic API for structured summary (`lib/summarize.sh`) -> stores in SQLite (`lib/db.sh`) -> copies raw JSONL to archive dir
 4. **Context injection** (`bin/episodic-context`): Outputs recent sessions + skills (with decay tiers) as markdown for the current project
 5. **Synthesis** (`bin/episodic-synthesize`): Loads sessions from DB + existing skills -> calls Opus to identify patterns -> writes skill markdown files to knowledge repo -> git commit+push

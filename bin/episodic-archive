@@ -16,6 +16,8 @@ Archive a Claude Code session JSONL file.
 
 Options:
   --previous          Archive the most recent session for current project dir
+  --current           Archive the current session (uses CLAUDE_SESSION_ID + CWD)
+  --catch-up          Summarize all sessions with pending/failed/no_summary status
   --all-in DIR        Archive all sessions in a project directory
   --no-summary        Skip Haiku summary generation (metadata only)
   --dry-run           Show what would be archived without doing it
@@ -24,6 +26,9 @@ Options:
 Examples:
   episodic-archive /path/to/session.jsonl
   episodic-archive --previous
+  episodic-archive --current --no-summary
+  episodic-archive --catch-up
+  episodic-archive --catch-up --dry-run
   episodic-archive --all-in ~/.claude/projects/-Users-foo-myproject/
 EOF
 }
@@ -214,6 +219,14 @@ while [[ $# -gt 0 ]]; do
             MODE="previous"
             shift
             ;;
+        --current)
+            MODE="current"
+            shift
+            ;;
+        --catch-up)
+            MODE="catchup"
+            shift
+            ;;
         --all-in)
             MODE="all"
             TARGET="$2"
@@ -269,6 +282,128 @@ case "$MODE" in
         # Use basename of CWD as project name (reliable, avoids lossy encoding)
         CWD_PROJECT=$(basename "$CWD")
         archive_session "$LATEST" "$SKIP_SUMMARY" "$DRY_RUN" "$CWD_PROJECT"
+        ;;
+
+    current)
+        # Archive the current session by ID (used by stop hook)
+        CWD="${CWD:-$(pwd)}"
+        CURRENT_SESSION="${CLAUDE_SESSION_ID:-}"
+
+        if [[ -z "$CURRENT_SESSION" ]]; then
+            episodic_log "INFO" "CLAUDE_SESSION_ID not set, skipping --current"
+            exit 0
+        fi
+
+        PROJECT_DIR_NAME=$(echo "$CWD" | tr '/' '-')
+        SESSION_FILE="$EPISODIC_CLAUDE_PROJECTS/$PROJECT_DIR_NAME/${CURRENT_SESSION}.jsonl"
+
+        if [[ ! -f "$SESSION_FILE" ]]; then
+            episodic_log "INFO" "Session file not found: $SESSION_FILE"
+            exit 0
+        fi
+
+        # Detect resumed sessions: if message count grew, reset status so
+        # archive_session re-processes it and catch-up re-summarizes it.
+        CURRENT_MSG_COUNT=$(jq -s 'length' "$SESSION_FILE" 2>/dev/null || echo 0)
+        STORED_MSG_COUNT=$(episodic_db_exec "SELECT COALESCE(message_count, 0) FROM sessions WHERE id='$(episodic_sql_escape "$CURRENT_SESSION")';" 2>/dev/null || echo 0)
+        STORED_MSG_COUNT="${STORED_MSG_COUNT:-0}"
+        if [[ "$STORED_MSG_COUNT" -gt 0 && "$CURRENT_MSG_COUNT" -gt "$STORED_MSG_COUNT" ]]; then
+            episodic_log "INFO" "Session $CURRENT_SESSION resumed: $STORED_MSG_COUNT -> $CURRENT_MSG_COUNT messages, re-archiving"
+            # Reset status so episodic_db_is_archived returns false
+            episodic_db_update_log "$CURRENT_SESSION" "pending"
+        fi
+
+        CWD_PROJECT=$(basename "$CWD")
+        archive_session "$SESSION_FILE" "$SKIP_SUMMARY" "$DRY_RUN" "$CWD_PROJECT"
+        ;;
+
+    catchup)
+        # Cross-project catch-up: summarize sessions with retryable status
+        # Queries archive_log for sessions needing summaries (no_summary, summary_failed, pending)
+        episodic_db_init "$EPISODIC_DB" >/dev/null 2>&1
+
+        # Find sessions that need summaries
+        CATCHUP_ROWS=$(episodic_db_query_json "
+            SELECT s.id, s.project, s.source_path, s.archive_path, al.status
+            FROM sessions s
+            JOIN archive_log al ON al.session_id = s.id
+            WHERE al.status IN ('no_summary', 'summary_failed', 'pending')
+            ORDER BY s.created_at ASC;
+        ")
+
+        CATCHUP_COUNT=$(echo "$CATCHUP_ROWS" | jq 'length' 2>/dev/null || echo 0)
+
+        if [[ "$CATCHUP_COUNT" -eq 0 || "$CATCHUP_ROWS" == "[]" ]]; then
+            episodic_log "INFO" "Catch-up: no sessions need summaries"
+            exit 0
+        fi
+
+        episodic_log "INFO" "Catch-up: $CATCHUP_COUNT sessions need summaries"
+
+        # Track projects that got new summaries for synthesis
+        declare -A CATCHUP_PROJECTS
+
+        for i in $(seq 0 $((CATCHUP_COUNT - 1))); do
+            ROW=$(echo "$CATCHUP_ROWS" | jq -r ".[$i]")
+            SID=$(echo "$ROW" | jq -r '.id')
+            SPROJ=$(echo "$ROW" | jq -r '.project')
+            SPATH=$(echo "$ROW" | jq -r '.source_path')
+            APATH=$(echo "$ROW" | jq -r '.archive_path')
+            SSTATUS=$(echo "$ROW" | jq -r '.status')
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo "Would summarize: $SID (project=$SPROJ, status=$SSTATUS)"
+                continue
+            fi
+
+            # Find the transcript file: prefer source_path, fall back to archive_path
+            TFILE=""
+            if [[ -n "$SPATH" && "$SPATH" != "null" && -f "$SPATH" ]]; then
+                TFILE="$SPATH"
+            elif [[ -n "$APATH" && "$APATH" != "null" && -f "$APATH" ]]; then
+                TFILE="$APATH"
+            fi
+
+            if [[ -z "$TFILE" ]]; then
+                episodic_log "WARN" "Catch-up: no transcript found for $SID"
+                continue
+            fi
+
+            # Extract and summarize
+            TRANSCRIPT=$(episodic_extract "$TFILE" 2>/dev/null || true)
+
+            if [[ -z "$TRANSCRIPT" || ${#TRANSCRIPT} -le 50 ]]; then
+                episodic_db_update_log "$SID" "too_short"
+                episodic_log "INFO" "Catch-up: $SID too short for summary"
+            else
+                SUMMARY_JSON=$(episodic_summarize "$TRANSCRIPT" 2>/dev/null || true)
+
+                if [[ -n "$SUMMARY_JSON" ]]; then
+                    episodic_db_insert_summary "$SID" "$SUMMARY_JSON" "$EPISODIC_SUMMARY_MODEL"
+                    episodic_db_update_log "$SID" "complete"
+                    episodic_log "INFO" "Catch-up: summary generated for $SID"
+                    CATCHUP_PROJECTS["$SPROJ"]=1
+                    echo "Summarized: $SID ($SPROJ)"
+                else
+                    episodic_db_update_log "$SID" "summary_failed"
+                    episodic_log "WARN" "Catch-up: summary failed for $SID"
+                fi
+            fi
+
+            # Rate limit between API calls
+            sleep 0.5
+        done
+
+        # Trigger synthesis once per project that got new summaries
+        if [[ "$DRY_RUN" != "true" ]] && type episodic_maybe_synthesize &>/dev/null; then
+            for PROJ in "${!CATCHUP_PROJECTS[@]}"; do
+                episodic_maybe_synthesize "$PROJ" || true
+            done
+        fi
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Catch-up dry run: $CATCHUP_COUNT sessions would be processed"
+        fi
         ;;
 
     all)
