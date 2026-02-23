@@ -17,7 +17,8 @@ HOOK_INPUT=$(cat)
 export CLAUDE_SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 export CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
-episodic_log "INFO" "SessionStart hook started (session=$CLAUDE_SESSION_ID, cwd=$CWD)"
+CWD_BASENAME=$(basename "${CWD:-unknown}")
+episodic_log "INFO" "SessionStart hook started [$CWD_BASENAME] (session=$CLAUDE_SESSION_ID)"
 
 # Pull latest knowledge repo (background, non-blocking)
 if [[ -f "$EPISODIC_ROOT/bin/episodic-knowledge-sync" ]]; then
@@ -37,4 +38,4 @@ if [[ -f "$EPISODIC_ROOT/bin/episodic-context" ]]; then
     "$EPISODIC_ROOT/bin/episodic-context" 2>/dev/null || true
 fi
 
-episodic_log "INFO" "SessionStart hook dispatched (session=$CLAUDE_SESSION_ID, background: catch-up, pull, index)"
+episodic_log "INFO" "SessionStart hook dispatched [$CWD_BASENAME] (session=$CLAUDE_SESSION_ID)"

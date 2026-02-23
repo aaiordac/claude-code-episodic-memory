@@ -44,19 +44,22 @@ archive_session() {
     local project_dir
     project_dir=$(basename "$(dirname "$jsonl_path")")
 
+    # Quick project label for log messages (full derivation happens later)
+    local project_label="${project_override:-$(echo "$project_dir" | rev | cut -d'-' -f1 | rev)}"
+
     # Check if already archived
     if episodic_db_is_archived "$session_file"; then
-        episodic_log "INFO" "Session $session_file already archived, skipping"
+        episodic_log "INFO" "[$project_label] Session $session_file already archived, skipping"
         return 0
     fi
 
-    episodic_log "INFO" "Archiving session: $session_file"
+    episodic_log "INFO" "[$project_label] Archiving session: $session_file"
 
     # Extract metadata
     local metadata
     metadata=$(episodic_extract_metadata "$jsonl_path")
     if [[ -z "$metadata" ]]; then
-        episodic_log "ERROR" "Failed to extract metadata from $jsonl_path"
+        episodic_log "ERROR" "[$project_label] Failed to extract metadata from $jsonl_path"
         return 1
     fi
 
@@ -186,14 +189,14 @@ archive_session() {
             if [[ -n "$summary_json" ]]; then
                 episodic_db_insert_summary "$session_id" "$summary_json" "$EPISODIC_SUMMARY_MODEL"
                 episodic_db_update_log "$session_id" "complete"
-                episodic_log "INFO" "Summary generated for $session_id"
+                episodic_log "INFO" "[$project_label] Summary generated for $session_id"
             else
                 episodic_db_update_log "$session_id" "summary_failed"
-                episodic_log "WARN" "Summary generation failed for $session_id"
+                episodic_log "WARN" "[$project_label] Summary generation failed for $session_id"
             fi
         else
             episodic_db_update_log "$session_id" "too_short"
-            episodic_log "INFO" "Session $session_id too short for summary"
+            episodic_log "INFO" "[$project_label] Session $session_id too short for summary"
         fi
     else
         episodic_db_update_log "$session_id" "no_summary"
@@ -308,7 +311,7 @@ case "$MODE" in
         STORED_MSG_COUNT=$(episodic_db_exec "SELECT COALESCE(message_count, 0) FROM sessions WHERE id='$(episodic_sql_escape "$CURRENT_SESSION")';" 2>/dev/null || echo 0)
         STORED_MSG_COUNT="${STORED_MSG_COUNT:-0}"
         if [[ "$STORED_MSG_COUNT" -gt 0 && "$CURRENT_MSG_COUNT" -gt "$STORED_MSG_COUNT" ]]; then
-            episodic_log "INFO" "Session $CURRENT_SESSION resumed: $STORED_MSG_COUNT -> $CURRENT_MSG_COUNT messages, re-archiving"
+            episodic_log "INFO" "[$(basename "$CWD")] Session $CURRENT_SESSION resumed: $STORED_MSG_COUNT -> $CURRENT_MSG_COUNT messages, re-archiving"
             # Reset status so episodic_db_is_archived returns false
             episodic_db_update_log "$CURRENT_SESSION" "pending"
         fi
@@ -365,7 +368,7 @@ case "$MODE" in
             fi
 
             if [[ -z "$TFILE" ]]; then
-                episodic_log "WARN" "Catch-up: no transcript found for $SID"
+                episodic_log "WARN" "Catch-up: [$SPROJ] no transcript found for $SID"
                 continue
             fi
 
@@ -374,19 +377,19 @@ case "$MODE" in
 
             if [[ -z "$TRANSCRIPT" || ${#TRANSCRIPT} -le 50 ]]; then
                 episodic_db_update_log "$SID" "too_short"
-                episodic_log "INFO" "Catch-up: $SID too short for summary"
+                episodic_log "INFO" "Catch-up: [$SPROJ] $SID too short for summary"
             else
                 SUMMARY_JSON=$(episodic_summarize "$TRANSCRIPT" 2>/dev/null || true)
 
                 if [[ -n "$SUMMARY_JSON" ]]; then
                     episodic_db_insert_summary "$SID" "$SUMMARY_JSON" "$EPISODIC_SUMMARY_MODEL"
                     episodic_db_update_log "$SID" "complete"
-                    episodic_log "INFO" "Catch-up: summary generated for $SID"
+                    episodic_log "INFO" "Catch-up: [$SPROJ] summary generated for $SID"
                     CATCHUP_PROJECTS["$SPROJ"]=1
                     echo "Summarized: $SID ($SPROJ)"
                 else
                     episodic_db_update_log "$SID" "summary_failed"
-                    episodic_log "WARN" "Catch-up: summary failed for $SID"
+                    episodic_log "WARN" "Catch-up: [$SPROJ] summary failed for $SID"
                 fi
             fi
 

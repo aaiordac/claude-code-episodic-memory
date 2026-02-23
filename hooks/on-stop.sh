@@ -17,7 +17,8 @@ HOOK_INPUT=$(cat)
 export CLAUDE_SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 export CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
-episodic_log "INFO" "Stop hook started (session=$CLAUDE_SESSION_ID, cwd=$CWD)"
+CWD_BASENAME=$(basename "${CWD:-unknown}")
+episodic_log "INFO" "Stop hook started [$CWD_BASENAME] (session=$CLAUDE_SESSION_ID)"
 
 # Quick metadata-only archive of current session (no Haiku call)
 "$EPISODIC_ROOT/bin/episodic-archive" --current --no-summary &>/dev/null || true
@@ -27,4 +28,4 @@ if [[ -f "$EPISODIC_ROOT/bin/episodic-knowledge-sync" ]]; then
     "$EPISODIC_ROOT/bin/episodic-knowledge-sync" push &>/dev/null &
 fi
 
-episodic_log "INFO" "Stop hook finished (session=$CLAUDE_SESSION_ID)"
+episodic_log "INFO" "Stop hook finished [$CWD_BASENAME] (session=$CLAUDE_SESSION_ID)"
