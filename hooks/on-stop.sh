@@ -2,7 +2,7 @@
 # Stop hook: checkpoint session + push knowledge changes
 # No API calls here — full summary happens on next SessionStart
 
-EPISODIC_ROOT="${EPISODIC_ROOT:-$HOME/.claude/episodic-memory}"
+EPISODIC_ROOT="${EPISODIC_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Skip if not installed
 [[ -f "$EPISODIC_ROOT/bin/episodic-archive" ]] || exit 0

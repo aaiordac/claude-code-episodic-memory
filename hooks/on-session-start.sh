@@ -2,7 +2,7 @@
 # SessionStart hook: sync knowledge, archive previous session, inject context
 # Must be fast — archive and sync are background where possible
 
-EPISODIC_ROOT="${EPISODIC_ROOT:-$HOME/.claude/episodic-memory}"
+EPISODIC_ROOT="${EPISODIC_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Skip if not installed
 [[ -f "$EPISODIC_ROOT/bin/episodic-archive" ]] || exit 0
