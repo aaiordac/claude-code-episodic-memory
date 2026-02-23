@@ -229,7 +229,14 @@ episodic_knowledge_push() {
     fi
 
     # Commit
-    if ! git -C "$repo" commit -m "$message" 2>/dev/null; then
+    local commit_output
+    if commit_output=$(git -C "$repo" commit -m "$message" 2>&1); then
+        local short_hash
+        short_hash=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo "???")
+        local changed_files
+        changed_files=$(git -C "$repo" diff --stat HEAD~1 --name-only 2>/dev/null | wc -l)
+        episodic_log "INFO" "Committed knowledge changes ($short_hash, $changed_files files): $message"
+    else
         episodic_log "ERROR" "Failed to commit knowledge changes"
         return 1
     fi
@@ -240,7 +247,7 @@ episodic_knowledge_push() {
         return 1
     fi
 
-    episodic_log "INFO" "Pushed knowledge changes: $message"
+    episodic_log "INFO" "Pushed knowledge repo to remote ($short_hash)"
 }
 
 # Abort any in-progress rebase and clean up dirty state in the knowledge repo.
@@ -348,8 +355,22 @@ episodic_knowledge_sync() {
                 # Stage + commit + push
                 git -C "$repo" add -A 2>/dev/null
                 if ! git -C "$repo" diff --cached --quiet 2>/dev/null; then
-                    git -C "$repo" commit -m "Update knowledge from episodic-memory" 2>/dev/null || true
-                    git -C "$repo" push 2>/dev/null || true
+                    if git -C "$repo" commit -m "Update knowledge from episodic-memory" 2>/dev/null; then
+                        local short_hash
+                        short_hash=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo "???")
+                        local changed_files
+                        changed_files=$(git -C "$repo" diff --stat HEAD~1 --name-only 2>/dev/null | wc -l)
+                        episodic_log "INFO" "Committed knowledge changes ($short_hash, $changed_files files)"
+                        if git -C "$repo" push 2>/dev/null; then
+                            episodic_log "INFO" "Pushed knowledge repo to remote ($short_hash)"
+                        else
+                            episodic_log "WARN" "Failed to push knowledge repo (offline?)"
+                        fi
+                    else
+                        episodic_log "ERROR" "Failed to commit knowledge changes during sync"
+                    fi
+                else
+                    episodic_log "INFO" "No knowledge changes to commit"
                 fi
             fi
             episodic_log "INFO" "Synced knowledge repo"
