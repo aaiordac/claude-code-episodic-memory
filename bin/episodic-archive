@@ -403,6 +403,9 @@ case "$MODE" in
 
         if [[ "$DRY_RUN" == "true" ]]; then
             echo "Catch-up dry run: $CATCHUP_COUNT sessions would be processed"
+        else
+            SUMMARIZED=${#CATCHUP_PROJECTS[@]}
+            episodic_log "INFO" "Catch-up finished: $CATCHUP_COUNT processed, $SUMMARIZED projects got new summaries"
         fi
         ;;
 

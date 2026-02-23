@@ -10,10 +10,14 @@ EPISODIC_ROOT="${EPISODIC_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # Skip if not installed
 [[ -f "$EPISODIC_ROOT/bin/episodic-archive" ]] || exit 0
 
+source "$EPISODIC_ROOT/lib/config.sh"
+
 # Parse hook input from stdin (Claude Code sends JSON)
 HOOK_INPUT=$(cat)
 export CLAUDE_SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 export CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+
+episodic_log "INFO" "SessionStart hook started (session=$CLAUDE_SESSION_ID, cwd=$CWD)"
 
 # Pull latest knowledge repo (background, non-blocking)
 if [[ -f "$EPISODIC_ROOT/bin/episodic-knowledge-sync" ]]; then
@@ -32,3 +36,5 @@ fi
 if [[ -f "$EPISODIC_ROOT/bin/episodic-context" ]]; then
     "$EPISODIC_ROOT/bin/episodic-context" 2>/dev/null || true
 fi
+
+episodic_log "INFO" "SessionStart hook dispatched (session=$CLAUDE_SESSION_ID, background: catch-up, pull, index)"
