@@ -12,6 +12,10 @@ EPISODIC_CLAUDE_PROJECTS="${EPISODIC_CLAUDE_PROJECTS:-$HOME/.claude/projects}"
 # Examples: claude-opus-4-6, claude-sonnet-4-5-20250929, claude-haiku-4-5
 EPISODIC_SUMMARY_MODEL="${EPISODIC_SUMMARY_MODEL:-claude-haiku-4-5}"
 
+# Fallback model when primary summary model fails (overloaded, error, etc.)
+# Set to empty string to disable fallback.
+EPISODIC_SUMMARY_FALLBACK_MODEL="${EPISODIC_SUMMARY_FALLBACK_MODEL:-claude-sonnet-4-6}"
+
 # Enable extended thinking for summary generation (true/false)
 # When enabled, the model thinks through the session before summarizing.
 # Only works with models that support extended thinking (Opus, Sonnet).
