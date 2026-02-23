@@ -111,4 +111,4 @@ Thresholds configurable via `EPISODIC_SKILL_FRESH_DAYS` / `EPISODIC_SKILL_AGING_
 - FTS5 virtual tables need special CREATE handling (check `sqlite_master` first)
 - Schema is defined once in `episodic_db_init` in `db.sh` — no other module should define tables
 - Tests override `EPISODIC_DB`, `EPISODIC_LOG`, and `EPISODIC_ARCHIVE_DIR` to temp paths and use `trap cleanup EXIT`
-- **Model defaults:** Summary model is Haiku (`claude-haiku-4-5-20251001`), synthesis model is Opus (`claude-opus-4-6`). Always use non-dated model aliases where possible to avoid API `not_found_error`. `config.sh` is the source of truth for defaults.
+- **Model defaults:** Summary model is Haiku (`claude-haiku-4-5`), synthesis model is Opus (`claude-opus-4-6`). Always use non-dated model aliases where possible to avoid API `not_found_error`. `config.sh` is the source of truth for defaults.
